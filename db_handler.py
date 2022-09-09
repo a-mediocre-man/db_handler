@@ -72,6 +72,11 @@ class Database:
         data = self.cursor.fetchall()
         return data
 
+    def update(self, table_name, row_id, column_name, new_content):
+        print(table_name, row_id, column_name, new_content)
+        self.cursor.execute(f"UPDATE {table_name} SET {column_name}=? WHERE ID=?", (new_content, row_id))
+        self.db.commit()
+
     def print_columns(self, table_name):
         columns = []
         data = self.cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
