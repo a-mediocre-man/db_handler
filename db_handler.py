@@ -68,9 +68,6 @@ class Database:
         return data
 
     def select_by_keyword(self, table_name, column, keyword):
-        #self.cursor.execute("SELECT * FROM relics where COMMON LIKE ?", ("%odonata%", ))
-        #self.cursor.execute("SELECT * FROM relics where UNCOMMON LIKE ?", ("%odonata%", ))
-        #self.cursor.execute("SELECT * FROM relics where RARE LIKE ?", ("%odonata%", ))
         self.cursor.execute(f"SELECT * FROM {table_name} where {column} LIKE ?", (f"%{keyword}%", ))
         data = self.cursor.fetchall()
         return data
