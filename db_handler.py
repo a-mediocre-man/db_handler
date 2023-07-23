@@ -1,14 +1,22 @@
 import sqlite3
+from pprint import pprint
+
+def transaction(func):
+    print("Hello from the decorator")
+    def wrapper(self, *args, **kwargs):
+        with sqlite3.connect(self.dbname) as conn:
+            cursor = conn.cursor()
+            result = func(self, cursor, *args, **kwargs)
+            conn.commit()
+            return result
+    return wrapper
 
 class Database:
     def __init__(self, dbname):
         self.dbname = dbname
-        self.db, self.cursor = self.make_cursor()
 
-    def make_cursor(self):
-        with sqlite3.connect(self.dbname) as db:
-            cursor = db.cursor()
-            return db, cursor
+    def __repr__(self):
+        return f"Database({self.dbname})"
 
     def columns(self, db_columns):
         string = ""
@@ -20,16 +28,18 @@ class Database:
                 string += f"{name} {column_type}, "
         return string
 
-    def create(self, table_name, db_columns):
+    @transaction
+    def create(self, cursor, table_name, db_columns):
         try:
-            self.cursor.execute(f"CREATE TABLE {table_name} (ID INTEGER PRIMARY KEY, {self.columns(db_columns)})")
+            cursor.execute(f"CREATE TABLE {table_name} (ID INTEGER PRIMARY KEY, {self.columns(db_columns)})")
         except sqlite3.OperationalError as E:
             print(E)
 
-    def insert(self, table_name: str, data: tuple):
+    @transaction
+    def insert(self, cursor, table_name: str, data: tuple):
         row_names = ""
         amt_values = ""
-        rows = self.cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
+        rows = cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
         del rows[0]
 
 
@@ -46,40 +56,40 @@ class Database:
                     amt_values += "?, "
 
             query = f"INSERT INTO {table_name} ({row_names}) VALUES ({amt_values})"
-            try:
-                self.cursor.execute(query, data)
-                self.db.commit()
-            except sqlite3.IntegrityError as E:
-                print(E)
-                print("something went wrong")
+            cursor.execute(query, data)
 
+    @transaction
     def delete(self, table_name: str, row_id: int):
-        self.cursor.execute(f"DELETE FROM {table_name} WHERE ID=?", (row_id,))
-        self.db.commit()
+        cursor.execute(f"DELETE FROM {table_name} WHERE ID=?", (row_id,))
 
-    def select_all(self, table_name):
-        self.cursor.execute(f"SELECT * FROM {table_name}")
-        data = self.cursor.fetchall()
+    @transaction
+    def select_all(self, cursor, table_name):
+        cursor.execute(f"SELECT * FROM {table_name}")
+        data = cursor.fetchall()
+        pprint(data)
         return data
     
-    def select_by_column(self, table_name, column, column_content):
-        self.cursor.execute(f"SELECT * FROM {table_name} where {column}=?", (column_content, ))
-        data = self.cursor.fetchall()
+    @transaction
+    def select_by_column(self, cursor, table_name, column, column_content):
+        cursor.execute(f"SELECT * FROM {table_name} where {column}=?", (column_content, ))
+        data = cursor.fetchall()
         return data
 
-    def select_by_keyword(self, table_name, column, keyword):
-        self.cursor.execute(f"SELECT * FROM {table_name} where {column} LIKE ?", (f"%{keyword}%", ))
-        data = self.cursor.fetchall()
+    @transaction
+    def select_by_keyword(self, cursor, table_name, column, keyword):
+        cursor.execute(f"SELECT * FROM {table_name} where {column} LIKE ?", (f"%{keyword}%", ))
+        data = cursor.fetchall()
         return data
 
-    def update(self, table_name, row_id, column_name, new_content):
+    @transaction
+    def update(self, cursor, table_name, row_id, column_name, new_content):
         print(table_name, row_id, column_name, new_content)
-        self.cursor.execute(f"UPDATE {table_name} SET {column_name}=? WHERE ID=?", (new_content, row_id))
-        self.db.commit()
+        cursor.execute(f"UPDATE {table_name} SET {column_name}=? WHERE ID=?", (new_content, row_id))
 
-    def print_columns(self, table_name):
+    @transaction
+    def print_columns(self, cursor, table_name):
         columns = []
-        data = self.cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
+        data = cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
         for i in data:
             name = i[1]
             column_type = i[2]
@@ -88,15 +98,17 @@ class Database:
         for column in columns:
             print(column)
 
-    def print_tables(self):
-        self.cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table'")
-        print(self.cursor.fetchall())
+    @transaction
+    def print_tables(self, cursor):
+        cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table'")
+        print(cursor.fetchall())
 
-    def drop(self, table_name):
+    @transaction
+    def drop(self, cursor, table_name):
         print(f"we are about to drop table: {table_name} like it's hot. There is no going back")
         input("")
         try:
-            self.cursor.execute(f"DROP TABLE {table_name}")
+            cursor.execute(f"DROP TABLE {table_name}")
         except sqlite3.OperationalError as E:
             print(E)
 
